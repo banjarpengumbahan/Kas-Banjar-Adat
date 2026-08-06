@@ -939,7 +939,7 @@ const useSheets = SHEETS_API_URL && SHEETS_API_URL.startsWith('http');
 // Token akses rahasia — dikirim di setiap permintaan ke Apps Script. Tanpa token yang cocok,
 // Apps Script akan menolak permintaan. GANTI nilai ini dengan teks acak Anda sendiri, lalu
 // tempel nilai yang SAMA PERSIS ke variabel API_TOKEN di kode Apps Script (Code.gs) Anda.
-const API_TOKEN = "banjar-adat-9f2k7q-rahasia-2026";
+const API_TOKEN = "98b0bc8a5d567241ce35f3ea5141ed8e1bec5a1e38d65178";
 
 async function sheetsGet(sheet){
   const res = await fetch(`${SHEETS_API_URL}?sheet=${encodeURIComponent(sheet)}&token=${encodeURIComponent(API_TOKEN)}`);
