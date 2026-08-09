@@ -2737,7 +2737,11 @@ function getSemuaTumpekUntukTutupBuku(){
   // pastikan periode yang punya transaksi atau sudah pernah tutup buku tetap ikut, walau di luar rentang di atas
   transaksi.forEach(t => keys.add(getTumpekInfo(t.tanggal).idx));
   tutupBuku.forEach(t => keys.add(Number(t.tumpekKey)));
-  return Array.from(keys).sort((a,b)=>b-a).map(String);
+  // Urutkan supaya periode PALING DEKAT dengan "sekarang" tampil paling atas (periode Sedang
+  // Berjalan selalu jadi pilihan pertama di daftar), bukan diurut dari yang paling baru/depan.
+  return Array.from(keys)
+    .sort((a,b)=> Math.abs(a-currentIdx) - Math.abs(b-currentIdx) || b-a)
+    .map(String);
 }
 
 function labelTumpek(info){
@@ -3257,7 +3261,16 @@ function renderAll(){
 }
 
 // default tanggal hari ini
-const todayStr = new Date().toISOString().slice(0,10);
+// Pakai tanggal LOKAL perangkat (bukan UTC via toISOString), supaya tidak salah tanggal
+// terutama di jam-jam awal hari untuk pengguna di zona waktu Indonesia.
+function tanggalLokalHariIni(){
+  const d = new Date();
+  const tahun = d.getFullYear();
+  const bulan = String(d.getMonth()+1).padStart(2,'0');
+  const tanggal = String(d.getDate()).padStart(2,'0');
+  return `${tahun}-${bulan}-${tanggal}`;
+}
+const todayStr = tanggalLokalHariIni();
 document.getElementById('masukTanggal').value = todayStr;
 document.getElementById('keluarTanggal').value = todayStr;
 document.getElementById('ayahanTanggal').value = todayStr;
