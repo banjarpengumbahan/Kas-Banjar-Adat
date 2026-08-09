@@ -1332,6 +1332,13 @@ function showToast(msg){
 
 async function loadData(silent){
   let changed = false;
+  const tanggalBaru = tanggalLokalHariIni();
+  if(tanggalBaru !== todayStr){
+    todayStr = tanggalBaru;
+    changed = true; // hari sudah berganti, paksa re-render
+    tutupBukuTumpekDipilihManual = false; // reset supaya dropdown ikut kembali ke periode berjalan terbaru
+    document.getElementById('todayDate').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
   if(useSupabase){
     try{
       const semua = await sheetsGetAll();
@@ -2819,6 +2826,8 @@ function breakdownKategori(list, jenis){
   return Object.entries(map).sort((a,b)=>b[1]-a[1]);
 }
 
+let tutupBukuTumpekDipilihManual = false;
+
 function renderTutupBukuTumpekSelect(){
   const sel = document.getElementById('tutupBukuTumpekSelect');
   const prevVal = sel.value;
@@ -2835,9 +2844,18 @@ function renderTutupBukuTumpekSelect(){
     else statusLabel = sudahDitutup ? ' — Sudah Ditutup' : ' — Sudah Berjalan (Belum Ditutup)';
     return `<option value="${k}">${labelTumpek(info)}${statusLabel}</option>`;
   }).join('');
-  if(keys.includes(prevVal)){ sel.value = prevVal; } else { sel.value = keyBerjalan; }
+  // Hanya pertahankan pilihan sebelumnya kalau memang PENGGUNA yang sengaja memilihnya
+  // sendiri (klik manual di dropdown). Kalau tidak, SELALU kembali ke periode yang
+  // sedang berjalan saat ini — supaya tidak "tersangkut" di periode lama kalau
+  // ada pergantian hari/tumpek sementara halaman belum di-refresh oleh pengguna.
+  if(tutupBukuTumpekDipilihManual && keys.includes(prevVal)){ sel.value = prevVal; }
+  else{ sel.value = keyBerjalan; }
   renderTutupBukuTumpek();
 }
+document.getElementById('tutupBukuTumpekSelect').addEventListener('change', ()=>{
+  tutupBukuTumpekDipilihManual = true;
+  renderTutupBukuTumpek();
+});
 
 function renderTutupBukuStatus(){
   const key = document.getElementById('tutupBukuTumpekSelect').value;
@@ -2892,7 +2910,6 @@ function renderTutupBukuTumpek(){
       <p class="subtle" style="margin-top:10px;">Cek tab Ayahan untuk rincian & status pembayaran tiap denda.</p>
     </div>`;
 }
-document.getElementById('tutupBukuTumpekSelect').addEventListener('change', renderTutupBukuTumpek);
 document.getElementById('btnPrintTutupTumpek').addEventListener('click', ()=>window.print());
 
 document.getElementById('btnProsesTutupBuku').addEventListener('click', async ()=>{
@@ -3270,7 +3287,7 @@ function tanggalLokalHariIni(){
   const tanggal = String(d.getDate()).padStart(2,'0');
   return `${tahun}-${bulan}-${tanggal}`;
 }
-const todayStr = tanggalLokalHariIni();
+let todayStr = tanggalLokalHariIni();
 document.getElementById('masukTanggal').value = todayStr;
 document.getElementById('keluarTanggal').value = todayStr;
 document.getElementById('ayahanTanggal').value = todayStr;
