@@ -696,7 +696,7 @@
       <h2 class="section-title">Laporan per Tumpek — Kalender Bali</h2>
       <p class="subtle" style="margin-top:-6px;">Periode dihitung berdasarkan siklus <strong>Tumpek (35 hari, Saniscara Kliwon)</strong> Kalender Bali. *Untuk penentuan hari upacara tetap rujuk kalender Bali resmi.</p>
       <div class="filters">
-        <div class="field" style="min-width:380px;"><label>Pilih Tumpek</label><select id="tumpekSelect"></select></div>
+        <div class="field" style="min-width:380px;"><label>Pilih Tumpek</label><select id="tumpekSelect" autocomplete="off"></select></div>
       </div>
       <table>
         <thead><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Jumlah</th></tr></thead>
@@ -719,7 +719,7 @@
       <h2 class="section-title">Laporan Tutup Buku — Per Tumpek</h2>
       <p class="subtle" style="margin-top:-6px;">Laporan resmi tutup buku kas banjar untuk satu periode Tumpek, lengkap dengan saldo awal & akhir serta rekap denda ayahan periode ini. Diproses manual oleh pengurus, tercatat permanen sebagai riwayat.</p>
       <div class="filters">
-        <div class="field" style="min-width:420px;"><label>Pilih Tumpek</label><select id="tutupBukuTumpekSelect"></select></div>
+        <div class="field" style="min-width:420px;"><label>Pilih Tumpek</label><select id="tutupBukuTumpekSelect" autocomplete="off"></select></div>
         <button class="btn secondary" id="btnProsesTutupBuku">Proses Tutup Buku</button>
         <button class="btn" id="btnPrintTutupTumpek" style="margin-left:auto;">Cetak</button>
       </div>
@@ -2761,20 +2761,21 @@ function renderTumpekSelect(){
   const sel = document.getElementById('tumpekSelect');
   const prevVal = sel.value;
   const currentIdx = getTumpekIndex(todayStr);
-  console.log('[DEBUG TUMPEK] todayStr =', todayStr, '| currentIdx =', currentIdx, '| keys =', getSemuaTumpekUntukTutupBuku());
   const keyBerjalan = String(currentIdx);
   const keys = getSemuaTumpekUntukTutupBuku();
+  // Tentukan lebih dulu kunci mana yang seharusnya terpilih, SEBELUM membangun HTML-nya —
+  // supaya atribut "selected" langsung tertanam di opsi yang benar sejak awal, tidak
+  // mengandalkan .value diatur belakangan (lebih tahan dari fitur "ingat form" browser).
+  const keyTerpilih = (tumpekSelectDipilihManual && keys.includes(prevVal)) ? prevVal : keyBerjalan;
   sel.innerHTML = keys.map(k=>{
     const info = getTumpekInfo(tambahHari('2026-01-03', Number(k)*35));
     let statusLabel = '';
     if(k===keyBerjalan) statusLabel = ' — Sedang Berjalan';
     else if(Number(k) > currentIdx) statusLabel = ' — Belum Berjalan';
-    return `<option value="${k}">${labelTumpek(info)}${statusLabel}</option>`;
+    const dipilih = k===keyTerpilih ? ' selected' : '';
+    return `<option value="${k}"${dipilih}>${labelTumpek(info)}${statusLabel}</option>`;
   }).join('');
-  // Sama seperti dropdown Tutup Buku: hanya pertahankan pilihan lama kalau memang
-  // PENGGUNA yang sengaja memilihnya sendiri, supaya tidak tersangkut di periode lama.
-  if(tumpekSelectDipilihManual && keys.includes(prevVal)){ sel.value = prevVal; }
-  else{ sel.value = keyBerjalan; }
+  sel.value = keyTerpilih;
   renderTumpekDetail();
 }
 document.getElementById('tumpekSelect').addEventListener('change', ()=>{
@@ -2843,6 +2844,7 @@ function renderTutupBukuTumpekSelect(){
   const currentIdx = getTumpekIndex(todayStr);
   const keyBerjalan = String(currentIdx);
   const keys = getSemuaTumpekUntukTutupBuku();
+  const keyTerpilih = (tutupBukuTumpekDipilihManual && keys.includes(prevVal)) ? prevVal : keyBerjalan;
 
   sel.innerHTML = keys.map(k=>{
     const info = getTumpekInfo(tambahHari('2026-01-03', Number(k)*35));
@@ -2851,14 +2853,10 @@ function renderTutupBukuTumpekSelect(){
     if(k===keyBerjalan) statusLabel = ' — Sedang Berjalan';
     else if(Number(k) > currentIdx) statusLabel = ' — Belum Berjalan';
     else statusLabel = sudahDitutup ? ' — Sudah Ditutup' : ' — Sudah Berjalan (Belum Ditutup)';
-    return `<option value="${k}">${labelTumpek(info)}${statusLabel}</option>`;
+    const dipilih = k===keyTerpilih ? ' selected' : '';
+    return `<option value="${k}"${dipilih}>${labelTumpek(info)}${statusLabel}</option>`;
   }).join('');
-  // Hanya pertahankan pilihan sebelumnya kalau memang PENGGUNA yang sengaja memilihnya
-  // sendiri (klik manual di dropdown). Kalau tidak, SELALU kembali ke periode yang
-  // sedang berjalan saat ini — supaya tidak "tersangkut" di periode lama kalau
-  // ada pergantian hari/tumpek sementara halaman belum di-refresh oleh pengguna.
-  if(tutupBukuTumpekDipilihManual && keys.includes(prevVal)){ sel.value = prevVal; }
-  else{ sel.value = keyBerjalan; }
+  sel.value = keyTerpilih;
   renderTutupBukuTumpek();
 }
 document.getElementById('tutupBukuTumpekSelect').addEventListener('change', ()=>{
