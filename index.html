@@ -2740,20 +2740,22 @@ function getAllTumpekKeys(){
 function getSemuaTumpekUntukTutupBuku(){
   const currentIdx = getTumpekIndex(todayStr);
   const keys = new Set();
-  for(let i = currentIdx - 12; i <= currentIdx + 6; i++){ keys.add(i); }
-  // pastikan periode yang punya transaksi atau sudah pernah tutup buku tetap ikut, walau di luar rentang di atas
+  // Sengaja TIDAK menampilkan semua kemungkinan periode (lampau/mendatang) secara otomatis.
+  // Daftar cukup diisi dari: periode yang MEMANG punya transaksi tercatat, periode yang
+  // SUDAH PERNAH diproses tutup bukunya, dan periode yang SEDANG BERJALAN saat ini (supaya
+  // tetap bisa dipilih meski belum ada transaksi tercatat untuk periode itu). Ini membuat
+  // daftar jauh lebih ringkas dan tidak membebani aplikasi seiring bertambahnya waktu.
   transaksi.forEach(t => keys.add(getTumpekInfo(t.tanggal).idx));
   tutupBuku.forEach(t => keys.add(Number(t.tumpekKey)));
-  // Urutkan supaya periode PALING DEKAT dengan "sekarang" tampil paling atas (periode Sedang
-  // Berjalan selalu jadi pilihan pertama di daftar), bukan diurut dari yang paling baru/depan.
-  return Array.from(keys)
-    .sort((a,b)=> Math.abs(a-currentIdx) - Math.abs(b-currentIdx) || b-a)
-    .map(String);
+  keys.add(currentIdx);
+  return Array.from(keys).sort((a,b)=>b-a).map(String);
 }
 
 function labelTumpek(info){
   return `Tumpek ${info.nama} — Tahun Saka ${info.sakaYear} — ${fmtTgl(info.startDate)} s/d ${fmtTgl(info.endDate)}`;
 }
+
+let tumpekSelectDipilihManual = false;
 
 function renderTumpekSelect(){
   const sel = document.getElementById('tumpekSelect');
@@ -2768,9 +2770,16 @@ function renderTumpekSelect(){
     else if(Number(k) > currentIdx) statusLabel = ' — Belum Berjalan';
     return `<option value="${k}">${labelTumpek(info)}${statusLabel}</option>`;
   }).join('');
-  if(keys.includes(prevVal)){ sel.value = prevVal; } else { sel.value = keyBerjalan; }
+  // Sama seperti dropdown Tutup Buku: hanya pertahankan pilihan lama kalau memang
+  // PENGGUNA yang sengaja memilihnya sendiri, supaya tidak tersangkut di periode lama.
+  if(tumpekSelectDipilihManual && keys.includes(prevVal)){ sel.value = prevVal; }
+  else{ sel.value = keyBerjalan; }
   renderTumpekDetail();
 }
+document.getElementById('tumpekSelect').addEventListener('change', ()=>{
+  tumpekSelectDipilihManual = true;
+  renderTumpekDetail();
+});
 
 function renderTumpekDetail(){
   const key = document.getElementById('tumpekSelect').value;
@@ -2789,7 +2798,6 @@ function renderTumpekDetail(){
   document.getElementById('tumpekDetailSummary').innerHTML =
     `<strong>${list.length}</strong> transaksi pada periode ini &nbsp;•&nbsp; Pemasukan: <span class="amt-in">${fmtRp(m)}</span> &nbsp;•&nbsp; Pengeluaran: <span class="amt-out">${fmtRp(k)}</span> &nbsp;•&nbsp; Saldo Periode: <strong>${fmtRp(m-k)}</strong>`;
 }
-document.getElementById('tumpekSelect').addEventListener('change', renderTumpekDetail);
 
 function renderRekapTumpek(){
   const keys = Array.from(new Set(transaksi.map(t=>getTumpekInfo(t.tanggal).key))).map(Number).sort((a,b)=>a-b);
