@@ -1,0 +1,25 @@
+{
+  "name": "Kas Banjar Adat",
+  "short_name": "Kas Banjar",
+  "description": "Buku kas digital untuk krama banjar",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F5EFDF",
+  "theme_color": "#8C3A2B",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
