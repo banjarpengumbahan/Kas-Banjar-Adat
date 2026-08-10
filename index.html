@@ -2761,6 +2761,7 @@ function renderTumpekSelect(){
   const sel = document.getElementById('tumpekSelect');
   const prevVal = sel.value;
   const currentIdx = getTumpekIndex(todayStr);
+  console.log('[DEBUG TUMPEK] todayStr =', todayStr, '| currentIdx =', currentIdx, '| keys =', getSemuaTumpekUntukTutupBuku());
   const keyBerjalan = String(currentIdx);
   const keys = getSemuaTumpekUntukTutupBuku();
   sel.innerHTML = keys.map(k=>{
@@ -3305,4 +3306,3 @@ cekSesiTersimpan();
 </script>
 </body>
 </html>
- 
