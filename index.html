@@ -1098,7 +1098,7 @@ async function seedAdminJikaKosong(){
     const passwordHash = await hashPassword('Anjali#2210');
     users.push({
       id: 'seed-admin', nama:'Satriya', username:'satriya', password: passwordHash,
-      role:'admin', tanggalDibuat: new Date().toISOString().slice(0,10)
+      role:'admin', tanggalDibuat: tanggalLokalHariIni()
     });
     await saveUsers();
   }
@@ -1303,17 +1303,23 @@ const fmtRp = n => 'Rp ' + Number(n||0).toLocaleString('id-ID');
 // Menormalkan berbagai kemungkinan format tanggal (termasuk objek Date/ISO datetime yang
 // kadang dikembalikan Google Sheets meski aslinya disimpan sebagai teks "YYYY-MM-DD")
 // menjadi string tanggal murni "YYYY-MM-DD", supaya perhitungan tumpek tidak jadi NaN.
+function tanggalKeStringLokal(d){
+  const tahun = d.getFullYear();
+  const bulan = String(d.getMonth()+1).padStart(2,'0');
+  const tanggal = String(d.getDate()).padStart(2,'0');
+  return `${tahun}-${bulan}-${tanggal}`;
+}
 function toDateOnly(v){
   if(!v) return v;
   if(typeof v === 'string'){
     const m = v.match(/^\d{4}-\d{2}-\d{2}/);
     if(m) return m[0];
     const d = new Date(v);
-    if(!isNaN(d)) return d.toISOString().slice(0,10);
+    if(!isNaN(d)) return tanggalKeStringLokal(d);
     return v;
   }
   const d = new Date(v);
-  if(!isNaN(d)) return d.toISOString().slice(0,10);
+  if(!isNaN(d)) return tanggalKeStringLokal(d);
   return v;
 }
 const fmtTgl = d => new Date(d).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
@@ -2689,7 +2695,13 @@ function getTumpekIndex(dateStr){
 function tambahHari(dateStr, n){
   const d = new Date(toDateOnly(dateStr) + 'T00:00:00');
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0,10);
+  // PENTING: JANGAN pakai toISOString() di sini — itu mengonversi ke UTC dan bisa
+  // menggeser tanggal mundur 1 hari untuk pengguna di zona waktu lebih maju dari UTC
+  // (WIB/WITA/WIT). Susun manual dari komponen tanggal LOKAL supaya selalu akurat.
+  const tahun = d.getFullYear();
+  const bulan = String(d.getMonth()+1).padStart(2,'0');
+  const tanggal = String(d.getDate()).padStart(2,'0');
+  return `${tahun}-${bulan}-${tanggal}`;
 }
 function getTumpekInfo(dateStr){
   const idx = getTumpekIndex(dateStr);
@@ -2893,6 +2905,17 @@ function renderTutupBukuTumpek(){
   const dendaAyahanPeriode = ayahan.filter(a=>a.status==='denda' && a.tanggal>=info.startDate && a.tanggal<=info.endDate).reduce((s,a)=>s+(a.denda||0),0);
   const recordTutupBuku = tutupBuku.find(t=>t.tumpekKey===key);
 
+  // Total pinjaman yang masih berjalan (sisa pokok saja, di luar bunga berjalan) — snapshot kondisi terkini
+  const totalPinjamanBerjalan = pinjaman.filter(p=>p.status!=='lunas').reduce((s,p)=>s+(Number(p.sisaPokok)||0), 0);
+
+  // Total pembayaran bunga HANYA untuk periode yang sedang berjalan saat ini — tumpek yang sudah
+  // lewat sengaja tidak menampilkan baris ini (sesuai permintaan, supaya laporan periode lampau
+  // tetap fokus ke transaksi periode itu saja tanpa data bunga yang bisa membingungkan).
+  const isTumpekBerjalan = idx === getTumpekIndex(todayStr);
+  const bungaTumpekIni = isTumpekBerjalan
+    ? transaksi.filter(t=>t.kategori==='Bunga Uang' && t.tanggal>=info.startDate && t.tanggal<=info.endDate).reduce((s,t)=>s+t.jumlah, 0)
+    : null;
+
   document.getElementById('tutupBukuTumpekIsi').innerHTML = `
     <div class="panel" style="background:var(--paper-2);">
       <p style="margin:0 0 4px;font-family:'Fraunces',serif;font-size:18px;font-weight:600;">Laporan Tutup Buku — Tumpek ${info.nama}</p>
@@ -2915,9 +2938,35 @@ function renderTutupBukuTumpek(){
         <tr><td>Total Denda Ayahan pada Periode Ini</td><td class="amt-out mono" style="text-align:right;">${fmtRp(dendaAyahanPeriode)}</td></tr>
       </tbody></table>
       <p class="subtle" style="margin-top:10px;">Cek tab Ayahan untuk rincian & status pembayaran tiap denda.</p>
+      <p style="margin:16px 0 6px;font-weight:700;">Kondisi Pinjaman Banjar</p>
+      <table><tbody>
+        <tr><td>Total Pinjaman Berjalan (Sisa Pokok, di luar bunga)</td><td class="amt-out mono" style="text-align:right;">${fmtRp(totalPinjamanBerjalan)}</td></tr>
+        ${isTumpekBerjalan ? `<tr><td>Total Pembayaran Bunga pada Tumpek Berjalan Ini</td><td class="amt-in mono" style="text-align:right;">${fmtRp(bungaTumpekIni)}</td></tr>` : ''}
+      </tbody></table>
+      <p class="subtle" style="margin-top:6px;">${isTumpekBerjalan ? 'Total pinjaman berjalan adalah kondisi terkini (bukan snapshot per periode). Pembayaran bunga hanya ditampilkan untuk periode yang sedang berjalan.' : 'Total pinjaman berjalan adalah kondisi terkini. Pembayaran bunga tidak ditampilkan untuk periode yang sudah lewat.'}</p>
     </div>`;
 }
-document.getElementById('btnPrintTutupTumpek').addEventListener('click', ()=>window.print());
+document.getElementById('btnPrintTutupTumpek').addEventListener('click', ()=>{
+  const isi = document.getElementById('tutupBukuTumpekIsi').innerHTML;
+  if(!isi.trim()){ showToast('Pilih Tumpek terlebih dahulu'); return; }
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>Laporan Tutup Buku per Tumpek</title>
+    <style>
+      @page{ size: A4; margin: 18mm 15mm; }
+      body{font-family:Arial,sans-serif;color:#2B2118;padding:0;}
+      table{width:100%;border-collapse:collapse;margin:6px 0;}
+      td{padding:5px 8px;font-size:12.5px;}
+      .mono{font-family:'Courier New',monospace;}
+      .amt-in{color:#4C6B4F;} .amt-out{color:#8C3A2B;}
+      .subtle{color:#8A7A5C;font-size:11px;}
+      p{margin:4px 0;}
+    </style></head>
+    <body>${isi}
+      <script>window.onload = () => window.print();<\/script>
+    </body></html>`);
+  win.document.close();
+});
 
 document.getElementById('btnProsesTutupBuku').addEventListener('click', async ()=>{
   const key = document.getElementById('tutupBukuTumpekSelect').value;
@@ -3022,7 +3071,27 @@ function renderTutupTahunIsi(){
     </div>`;
 }
 document.getElementById('tutupTahunSelect').addEventListener('change', renderTutupTahunIsi);
-document.getElementById('btnPrintTutupTahun').addEventListener('click', ()=>window.print());
+document.getElementById('btnPrintTutupTahun').addEventListener('click', ()=>{
+  const isi = document.getElementById('tutupBukuTahunIsi').innerHTML;
+  if(!isi.trim()){ showToast('Belum ada laporan tutup buku tahunan untuk dicetak'); return; }
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>Laporan Tutup Buku Tahunan</title>
+    <style>
+      @page{ size: A4; margin: 18mm 15mm; }
+      body{font-family:Arial,sans-serif;color:#2B2118;padding:0;}
+      table{width:100%;border-collapse:collapse;margin:6px 0;}
+      td{padding:5px 8px;font-size:12.5px;}
+      .mono{font-family:'Courier New',monospace;}
+      .amt-in{color:#4C6B4F;} .amt-out{color:#8C3A2B;}
+      .subtle{color:#8A7A5C;font-size:11px;}
+      p{margin:4px 0;}
+    </style></head>
+    <body>${isi}
+      <script>window.onload = () => window.print();<\/script>
+    </body></html>`);
+  win.document.close();
+});
 
 document.getElementById('btnProsesTutupTahun').addEventListener('click', async ()=>{
   const nominalPengampel = Number(document.getElementById('nominalBiayaPengampel').value) || 0;
